@@ -14,6 +14,7 @@ import wmi
 import base64
 from cryptography.fernet import Fernet
 import winreg
+import traceback
 
 # 添加全局配置变量
 STYLE_CONFIG = {
@@ -300,12 +301,14 @@ def draw_digit(draw, digit, x_offset, y_offset, seg_width, seg_height, thickness
     segments = get_segments(x_offset, y_offset, seg_width, seg_height, thickness)
     
     print(f"\nDebug - draw_digit:")
-    print(f"Drawing digit: '{digit}'")
+    print(f"Drawing character: '{digit}'")
     print(f"Position: x={x_offset}, y={y_offset}")
     print(f"Size: width={seg_width}, height={seg_height}")
-    
+    print(f"Thickness: {thickness}")
+
     # 扩展字符映射以支持自定义段显示
     digit_to_segments = {
+        # 数字映射
         '0': ['top', 'top_left', 'top_right', 'bottom_left', 'bottom_right', 'bottom'],
         'O': ['top', 'top_left', 'top_right', 'bottom_left', 'bottom_right', 'bottom'],
         '1': ['top_right', 'bottom_right'],
@@ -321,6 +324,8 @@ def draw_digit(draw, digit, x_offset, y_offset, seg_width, seg_height, thickness
         'H': ['top_left', 'top_right', 'middle', 'bottom_left', 'bottom_right'],
         'h': ['top_left', 'middle', 'bottom_left', 'bottom_right'],
         '9': ['top', 'top_left', 'top_right', 'middle', 'bottom_right', 'bottom'],
+        
+        # 字母映射
         'A': ['top', 'top_left', 'top_right', 'middle', 'bottom_left', 'bottom_right'],
         'B': ['top_left', 'middle', 'bottom_left', 'bottom_right', 'bottom'],
         'b': ['top_left', 'middle', 'bottom_left', 'bottom_right', 'bottom'],
@@ -330,7 +335,10 @@ def draw_digit(draw, digit, x_offset, y_offset, seg_width, seg_height, thickness
         'E': ['top', 'top_left', 'middle', 'bottom_left', 'bottom'],
         'e': ['top', 'top_left', 'middle', 'bottom_left', 'bottom'],
         'F': ['top', 'top_left', 'middle', 'bottom_left'],
-        'f': ['top', 'top_left', 'middle', 'bottom_left'],
+        
+        # 特殊字符映射
+        '*': ['diamond'],
+        '.': ['dot'],
         '_': ['bottom'],
         ' ': [],
         't': ['top_left', 'middle', 'bottom_left', 'bottom'],
@@ -349,7 +357,10 @@ def draw_digit(draw, digit, x_offset, y_offset, seg_width, seg_height, thickness
         'n': ['middle', 'bottom_left', 'bottom_right'],
         # 添加菱形显示
         '*': ['diamond'],
-        # 添加自定义段显示支持
+    }
+
+    # 段选择映射
+    segment_mapping = {
         'a': ['top'],
         'b': ['top_right'],
         'c': ['middle'],
@@ -358,29 +369,37 @@ def draw_digit(draw, digit, x_offset, y_offset, seg_width, seg_height, thickness
         'f': ['top_left'],
         'g': ['bottom_right']
     }
-    
-    # 支持自定义段组合
-    if digit.startswith('(') and digit.endswith(')'):
-        print(f"Debug - Segment mode detected for: {digit}")
-        segments_to_show = [c.lower() for c in digit[1:-1]]  # 转换为小写
-        print(f"Segments to show: {segments_to_show}")
+
+    try:
+        # 处理段选择模式
+        if digit.startswith('(') and digit.endswith(')'):
+            print(f"Debug - Segment selection mode:")
+            segments_to_show = [c.lower() for c in digit[1:-1]]
+            print(f"Requested segments: {segments_to_show}")
+            
+            for seg in segments_to_show:
+                if seg in segment_mapping:
+                    print(f"  Drawing segment {seg}: {segment_mapping[seg]}")
+                    for segment in segment_mapping[seg]:
+                        draw.polygon(segments[segment], fill='black')
+                else:
+                    print(f"  Warning: Invalid segment '{seg}'")
         
-        for seg in segments_to_show:
-            print(f"Processing segment: {seg}")
-            if seg in digit_to_segments:
-                print(f"  Found mapping for {seg}: {digit_to_segments[seg]}")
-                for segment in digit_to_segments[seg]:
-                    print(f"    Drawing segment: {segment}")
+        # 处理普通字符
+        else:
+            print(f"Debug - Normal character mode:")
+            if digit in digit_to_segments:
+                segments_to_draw = digit_to_segments[digit]
+                print(f"Segments for '{digit}': {segments_to_draw}")
+                for segment in segments_to_draw:
+                    print(f"  Drawing segment: {segment}")
                     draw.polygon(segments[segment], fill='black')
             else:
-                print(f"  Warning: No mapping found for segment {seg}")
-    else:
-        print("Debug - Normal digit mode")
-        segments_to_draw = digit_to_segments.get(digit, [])
-        print(f"Segments to draw: {segments_to_draw}")
-        for segment in segments_to_draw:
-            print(f"  Drawing segment: {segment}")
-        draw.polygon(segments[segment], fill='black')
+                print(f"Warning: Unknown character '{digit}'")
+
+    except Exception as e:
+        print(f"Error drawing character '{digit}': {str(e)}")
+        print(f"Stack trace: {traceback.format_exc()}")
 
 def image_to_clipboard(image):
     output = BytesIO()
@@ -521,7 +540,7 @@ class StyleAdjustWindow:
             LANG_CONFIG[current_lang]['dot_settings']: [
                 (LANG_CONFIG[current_lang]['dot_size'], 'dot_size', 2, 5),
                 (LANG_CONFIG[current_lang]['x_offset'], 'dot_offset_x', -15, 15),
-                (LANG_CONFIG[current_lang]['y_offset'], 'dot_offset_y', -5, 5)
+                (LANG_CONFIG[current_lang]['y_offset'], 'dot_offset_y', -15, 15)
             ],
             LANG_CONFIG[current_lang]['square_settings']: [
                 (LANG_CONFIG[current_lang]['square_size'], 'square_size', 8, 30),
@@ -595,7 +614,7 @@ class StyleAdjustWindow:
                  fill='black', width=1)
 
         # 绘制示例字符
-        chars = ["1", "2", "3", "4"]  # 使用数字便于观察间距
+        chars = ["8", "*", "8", "8"]  # 使用数字便于观察间距
         for i, char in enumerate(chars):
             # 计算字符在方格中的居中位置，考虑间距
             char_width = STYLE_CONFIG['seg_width']
@@ -993,6 +1012,6 @@ if __name__ == '__main__':
     except Exception as e:
         messagebox.showerror(
             "错误" if current_lang == 'zh_CN' else "Error",
-            f"程序启动失败: {str(e)}" if current_lang == 'zh_CN' else
-            f"Failed to start: {str(e)}"
+            f"程序启动失败: {str(e)}" if current_lang == 'zh_CN' else f"Failed to start: {str(e)}"
         )
+        sys.exit(1)
